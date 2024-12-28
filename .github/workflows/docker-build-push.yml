@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  REGISTRY_IMAGE: pompushko/imgw-exporter
+  REGISTRY_IMAGE: pompushko/alfaromeostickerbot
 
 jobs:
   build:
