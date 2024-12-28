@@ -18,7 +18,7 @@ user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-VIN_PATTERN = re.compile(r'VIN ZA[A-HJ-NPR-Z0-9]{15}')
+VIN_PATTERN = re.compile(r'(?:VIN\s*)?ZA[RS][A-HJ-NPR-Z0-9]{14}', re.IGNORECASE)
 
 @dp.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=JOIN_TRANSITION))
 async def on_added_to_group(event: ChatMemberUpdated):
@@ -40,8 +40,8 @@ async def handle_message(message: Message):
     if message.chat.type in ['group', 'supergroup']:
         message_text = message.text or message.caption or ''
         if message_text:
-            match = VIN_PATTERN.search(message_text)
-            if match:
+            vin = VIN_PATTERN.search(message_text)
+            if vin:
                 user_id = message.from_user.id
 
                 remaining = user_requests.get_remaining_requests(user_id)
@@ -66,7 +66,6 @@ async def handle_message(message: Message):
                     await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
                     return
                 
-                vin = match.group(0).split('VIN ')[1]
                 url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
                 
                 try:
