@@ -3,11 +3,17 @@ import re
 import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, ChatMemberUpdatedFilter, ADMINISTRATOR, JOIN_TRANSITION
-from aiogram.types import Message, ChatMemberUpdated
+from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
+
+from datetime import datetime, timedelta
+
+from UserRequests import UserRequests
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_CHATS = set()
+MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "5"))
 
+user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -17,16 +23,40 @@ VIN_PATTERN = re.compile(r'VIN ZA[A-HJ-NPR-Z0-9]{15}')
 async def on_added_to_group(event: ChatMemberUpdated):
     if event.new_chat_member.status == "member":
         ALLOWED_CHATS.add(event.chat.id)
-        await bot.send_message(event.chat.id, "Бот активирован в этой группе")
+        await bot.send_message(
+            event.chat.id, 
+            f"Бот активирован в этой группе\nЛимит запросов на пользователя: <b>{MAX_REQUESTS_PER_DAY}</b> в сутки",
+            parse_mode="HTML"
+        )
 
 @dp.message()
 async def handle_message(message: Message):
-    # Проверяем, что сообщение из разрешенной группы
+    if message.from_user.is_bot:
+        return
+    if message.content_type not in ['text', 'photo', 'document']:
+        return
     # if message.chat.type in ['group', 'supergroup'] and message.chat.id in ALLOWED_CHATS:
     if message.chat.type in ['group', 'supergroup']:
-        if message.text:
-            match = VIN_PATTERN.search(message.text)
+        message_text = message.text or message.caption or ''
+        if message_text:
+            match = VIN_PATTERN.search(message_text)
             if match:
+                user_id = message.from_user.id
+
+                remaining = user_requests.get_remaining_requests(user_id)
+                if remaining <= 0:
+                    next_reset = datetime.now() + timedelta(days=1)
+                    await message.reply(
+                        f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
+                        f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
+                        parse_mode="HTML"
+                    )
+                    return
+                
+                if not user_requests.add_request(user_id):
+                    await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
+                    return
+                
                 vin = match.group(0).split('VIN ')[1]
                 url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
                 
@@ -34,19 +64,25 @@ async def handle_message(message: Message):
                     async with httpx.AsyncClient() as client:
                         response = await client.get(url)
                         if response.status_code == 200:
-                            with open(f"{vin}.pdf", "wb") as f:
-                                f.write(response.content)
-                            await message.reply_document(
-                                document=types.FSInputFile(f"{vin}.pdf"),
-                                caption=f"Window sticker for VIN: {vin}"
+                            pdf_file = BufferedInputFile(
+                                response.content,
+                                filename=f"{vin}.pdf"
                             )
-                            os.remove(f"{vin}.pdf")
+
+                            await message.reply_document(
+                                document=pdf_file,
+                                caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                parse_mode="HTML"
+                            )
                         else:
+                            user_requests.requests[user_id].pop()
                             await message.reply("Не удалось загрузить PDF для данного VIN")
                 except Exception as e:
+                    user_requests.requests[user_id].pop()
                     await message.reply(f"Произошла ошибка: {str(e)}")
 
 async def main():
+    print(f"Бот запущен с лимитом {MAX_REQUESTS_PER_DAY} запросов в сутки на пользователя")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

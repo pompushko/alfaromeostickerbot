@@ -6,6 +6,7 @@
     image: pompushko/alfaromeostickerbot:latest
     environment:
       - TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+      - MAX_REQUESTS_PER_DAY=5
     restart: always
     deploy:
       mode: global
