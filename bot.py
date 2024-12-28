@@ -4,6 +4,7 @@ import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, ChatMemberUpdatedFilter, ADMINISTRATOR, JOIN_TRANSITION
 from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
+from aiogram.exceptions import TelegramBadRequest
 
 from datetime import datetime, timedelta
 
@@ -46,11 +47,19 @@ async def handle_message(message: Message):
                 remaining = user_requests.get_remaining_requests(user_id)
                 if remaining <= 0:
                     next_reset = datetime.now() + timedelta(days=1)
-                    await message.reply(
-                        f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
-                        f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
-                        parse_mode="HTML"
-                    )
+                    try:
+                        await message.reply(
+                            f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
+                            f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
+                            parse_mode="HTML"
+                        )
+                    except TelegramBadRequest as e:
+                        if "message to be replied not found" in str(e):
+                            await message.chat.send_message(
+                                f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
+                                f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
+                                parse_mode="HTML"
+                            )
                     return
                 
                 if not user_requests.add_request(user_id):
@@ -69,14 +78,30 @@ async def handle_message(message: Message):
                                 filename=f"{vin}.pdf"
                             )
 
-                            await message.reply_document(
-                                document=pdf_file,
-                                caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                parse_mode="HTML"
-                            )
+                            try:
+                                await message.reply_document(
+                                    document=pdf_file,
+                                    caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                    parse_mode="HTML"
+                                )
+                            except TelegramBadRequest as e:
+                                if "message to be replied not found" in str(e):
+                                    await message.chat.send_document(
+                                        document=pdf_file,
+                                        caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                        parse_mode="HTML"
+                                    )
+                                else:
+                                    raise
                         else:
                             user_requests.requests[user_id].pop()
-                            await message.reply("Не удалось загрузить PDF для данного VIN")
+                            try:
+                                await message.reply("Не удалось загрузить PDF для данного VIN")
+                            except TelegramBadRequest as e:
+                                if "message to be replied not found" in str(e):
+                                    await message.chat.send_message("Не удалось загрузить PDF для данного VIN")
+                                else:
+                                    raise
                 except Exception as e:
                     user_requests.requests[user_id].pop()
                     await message.reply(f"Произошла ошибка: {str(e)}")
