@@ -1,4 +1,5 @@
 import os
+import io
 import re
 import httpx
 from aiogram import Bot, Dispatcher, types
@@ -8,7 +9,10 @@ from aiogram.exceptions import TelegramBadRequest
 
 from datetime import datetime, timedelta
 
+import PyPDF2
+
 from UserRequests import UserRequests
+from EperHandler import FiatPartsPDFGenerator, FiatPartsClient, cookies, session_id, headers
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_CHATS = set()
@@ -73,26 +77,40 @@ async def handle_message(message: Message):
                     async with httpx.AsyncClient() as client:
                         response = await client.get(url)
                         if response.status_code == 200:
-                            pdf_file = BufferedInputFile(
-                                response.content,
-                                filename=f"{vin}.pdf"
-                            )
+                            pdf_buffer = io.BytesIO(response.content)
+                            pdf_reader = PyPDF2.PdfReader(pdf_buffer)
+                            text = pdf_reader.pages[0].extract_text()
 
-                            try:
-                                await message.reply_document(
-                                    document=pdf_file,
-                                    caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                    parse_mode="HTML"
+                            if "Sorry, a Window Sticker is unavailable for this VIN" in text:
+                                user_requests.requests[user_id].pop()
+                                try:
+                                    await message.reply("Window sticker недоступен для данного VIN")
+                                except TelegramBadRequest as e:
+                                    if "message to be replied not found" in str(e):
+                                        await message.chat.send_message("Window sticker недоступен для данного VIN")
+                                    else:
+                                        raise
+                            else:
+                                pdf_file = BufferedInputFile(
+                                    response.content,
+                                    filename=f"{vin}.pdf"
                                 )
-                            except TelegramBadRequest as e:
-                                if "message to be replied not found" in str(e):
-                                    await message.chat.send_document(
+
+                                try:
+                                    await message.reply_document(
                                         document=pdf_file,
                                         caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
                                         parse_mode="HTML"
                                     )
-                                else:
-                                    raise
+                                except TelegramBadRequest as e:
+                                    if "message to be replied not found" in str(e):
+                                        await message.chat.send_document(
+                                            document=pdf_file,
+                                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                            parse_mode="HTML"
+                                        )
+                                    else:
+                                        raise
                         else:
                             user_requests.requests[user_id].pop()
                             try:
@@ -105,6 +123,24 @@ async def handle_message(message: Message):
                 except Exception as e:
                     user_requests.requests[user_id].pop()
                     await message.reply(f"Произошла ошибка: {str(e)}")
+
+                # try:
+                #     eper_client = FiatPartsClient(headers=headers, cookies=cookies)
+                #     pdf_generator = FiatPartsPDFGenerator()
+                #     result = await eper_client.get_full_vin_info(vin, session_id)
+
+                #     pdf_report = BufferedInputFile(
+                #                     pdf_generator.create_pdf(result),
+                #                     filename=f"{vin}.pdf"
+                #                 )
+                #     await message.reply_document(
+                #                         document=pdf_report,
+                #                         caption=f"Комплектация по VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                #                         parse_mode="HTML"
+                #                     )
+                    
+                # except Exception as e:
+                #     user_requests.requests[user_id].pop()
 
 async def main():
     print(f"Бот запущен с лимитом {MAX_REQUESTS_PER_DAY} запросов в сутки на пользователя")

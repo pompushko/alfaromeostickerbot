@@ -1,3 +1,5 @@
 httpx
 aiogram
 python-dotenv
+reportlab
+PyPDF2
