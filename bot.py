@@ -12,11 +12,11 @@ from datetime import datetime, timedelta
 import PyPDF2
 
 from UserRequests import UserRequests
-from EperHandler import FiatPartsPDFGenerator, FiatPartsClient, cookies, session_id, headers
+from DbHandler import DbHandler
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_CHATS = set()
-MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "5"))
+MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
 
 user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
@@ -67,63 +67,75 @@ async def handle_message(message: Message):
                             )
                     return
                 
-                if not user_requests.add_request(user_id):
-                    await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
-                    return
-                
-                url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
-                
-                try:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(url)
-                        if response.status_code == 200:
-                            pdf_buffer = io.BytesIO(response.content)
-                            pdf_reader = PyPDF2.PdfReader(pdf_buffer)
-                            text = pdf_reader.pages[0].extract_text()
+                db = DbHandler()
+                file_from_db = db.GetFileByVin(vin)
+                pdf_file_data = None
+                pdf_load_failed = False
+                if isinstance(file_from_db, str):
+                    if not user_requests.add_request(user_id):
+                        await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
+                        return
+                    
+                    url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
+                    
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(url)
+                            if response.status_code == 200:
+                                pdf_buffer = io.BytesIO(response.content)
+                                pdf_reader = PyPDF2.PdfReader(pdf_buffer)
+                                text = pdf_reader.pages[0].extract_text()
 
-                            if "Sorry, a Window Sticker is unavailable for this VIN" in text:
-                                user_requests.requests[user_id].pop()
-                                try:
-                                    await message.reply("Window sticker недоступен для данного VIN")
-                                except TelegramBadRequest as e:
-                                    if "message to be replied not found" in str(e):
-                                        await message.chat.send_message("Window sticker недоступен для данного VIN")
-                                    else:
-                                        raise
+                                if "Sorry, a Window Sticker is unavailable for this VIN" in text:
+                                    user_requests.requests[user_id].pop()
+                                    db.AddFile(vin, None)
+                                else:
+                                    pdf_file_data = response.content
+                                    db.AddFile(vin, pdf_file_data)
                             else:
-                                pdf_file = BufferedInputFile(
-                                    response.content,
+                                user_requests.requests[user_id].pop()
+                                pdf_load_failed = True
+                    except Exception as e:
+                        user_requests.requests[user_id].pop()
+                        await message.reply(f"Произошла ошибка: {str(e)}")
+                else:
+                    pdf_file_data = file_from_db
+                if pdf_file_data:    
+                    pdf_file = BufferedInputFile(
+                                    pdf_file_data,
                                     filename=f"{vin}.pdf"
                                 )
-
-                                try:
-                                    await message.reply_document(
-                                        document=pdf_file,
-                                        caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                        parse_mode="HTML"
-                                    )
-                                except TelegramBadRequest as e:
-                                    if "message to be replied not found" in str(e):
-                                        await message.chat.send_document(
-                                            document=pdf_file,
-                                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                            parse_mode="HTML"
-                                        )
-                                    else:
-                                        raise
+                    try:
+                        await message.reply_document(
+                            document=pdf_file,
+                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                            parse_mode="HTML"
+                        )
+                    except TelegramBadRequest as e:
+                        if "message to be replied not found" in str(e):
+                            await message.chat.send_document(
+                                document=pdf_file,
+                                caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                parse_mode="HTML"
+                            )
                         else:
-                            user_requests.requests[user_id].pop()
-                            try:
-                                await message.reply("Не удалось загрузить PDF для данного VIN")
-                            except TelegramBadRequest as e:
-                                if "message to be replied not found" in str(e):
-                                    await message.chat.send_message("Не удалось загрузить PDF для данного VIN")
-                                else:
-                                    raise
-                except Exception as e:
-                    user_requests.requests[user_id].pop()
-                    await message.reply(f"Произошла ошибка: {str(e)}")
-
+                            raise
+                elif not pdf_file_data and not pdf_load_failed:
+                    try:
+                        await message.reply("Window sticker недоступен для данного VIN")
+                    except TelegramBadRequest as e:
+                        if "message to be replied not found" in str(e):
+                            await message.chat.send_message("Window sticker недоступен для данного VIN")
+                        else:
+                            raise
+                else:
+                    try:
+                        await message.reply("Ошибка загрузки файла")
+                    except TelegramBadRequest as e:
+                        if "message to be replied not found" in str(e):
+                            await message.chat.send_message("Ошибка загрузки файла")
+                        else:
+                            raise                    
                 # try:
                 #     eper_client = FiatPartsClient(headers=headers, cookies=cookies)
                 #     pdf_generator = FiatPartsPDFGenerator()

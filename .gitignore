@@ -162,3 +162,6 @@ cython_debug/
 
 *.log.*
 *.lock
+
+*.pdf
+*.sqlite3
