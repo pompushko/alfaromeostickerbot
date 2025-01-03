@@ -19,7 +19,6 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 BOT_USER_ID = os.getenv("TELEGRAM_BOT_USER_ID")
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
-CHAT_BASE_URL = os.getenv("CHAT_BASE_URL")
 user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -140,10 +139,10 @@ async def handle_message(message: Message):
                         await message.reply(f"Произошла ошибка: {str(e)}")
                 else:
                     try:
-                        await message.reply(f"Ссылка на сообщение с pdf:\n {CHAT_BASE_URL}{msg_id_from_db}")
+                        await message.reply(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
                     except TelegramBadRequest as e:
                         if "message to be replied not found" in str(e):
-                            await message.chat.send_message(f"Ссылка на сообщение с pdf:\n {CHAT_BASE_URL}{msg_id_from_db}")
+                            await message.chat.send_message(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
                         else:
                             raise 
 

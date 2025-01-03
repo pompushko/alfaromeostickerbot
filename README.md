@@ -10,7 +10,6 @@
       - TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
       - MAX_REQUESTS_PER_DAY=5
       - TELEGRAM_BOT_USER_ID={your_bot_user_id}
-      - CHAT_BASE_URL={your_chat_url}
       - SQLITE_LOCATION={mounted_dir}/VINComplectations.sqlite3
     restart: always
     deploy:

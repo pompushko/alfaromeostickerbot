@@ -3,4 +3,4 @@ aiogram
 python-dotenv
 reportlab
 PyPDF2
-peewee
+peewee_aio
