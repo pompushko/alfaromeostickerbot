@@ -4,20 +4,22 @@ import re
 import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, ChatMemberUpdatedFilter, ADMINISTRATOR, JOIN_TRANSITION
-from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
+from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile, MaybeInaccessibleMessage
 from aiogram.exceptions import TelegramBadRequest
-
+from aiogram.methods import CopyMessage, DeleteMessage
+import asyncio
 from datetime import datetime, timedelta
 
 import PyPDF2
 
 from UserRequests import UserRequests
-from DbHandler import DbHandler
+from AsyncDbHandler import AsyncDbHandler
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_USER_ID = os.getenv("TELEGRAM_BOT_USER_ID")
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
-
+CHAT_BASE_URL = os.getenv("CHAT_BASE_URL")
 user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -66,12 +68,19 @@ async def handle_message(message: Message):
                                 parse_mode="HTML"
                             )
                     return
-                
-                db = DbHandler()
-                file_from_db = db.GetFileByVin(vin)
-                pdf_file_data = None
-                pdf_load_failed = False
-                if isinstance(file_from_db, str):
+                db = AsyncDbHandler()
+                msg_id_from_db = await db.GetMessageIdByVin(vin)
+
+                if msg_id_from_db:
+                     #check if message exists
+                    try:
+                        tmp_msg = await bot(CopyMessage(chat_id=message.chat.id, from_chat_id=message.chat.id, from_user_id=BOT_USER_ID, message_id=msg_id_from_db))
+                        await bot(DeleteMessage(from_user_id=BOT_USER_ID, message_id=tmp_msg.message_id, chat_id=message.chat.id))
+                    except TelegramBadRequest:
+                    # delete it from db if it's inaccessible for the bot    
+                        await db.DeleteVin(vin)
+                        msg_id_from_db = None
+                if not msg_id_from_db:
                     if not user_requests.add_request(user_id):
                         await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
                         return
@@ -88,54 +97,56 @@ async def handle_message(message: Message):
 
                                 if "Sorry, a Window Sticker is unavailable for this VIN" in text:
                                     user_requests.requests[user_id].pop()
-                                    db.AddFile(vin, None)
+                                    try:
+                                        sent_msg = await message.reply("Window sticker недоступен для данного VIN")
+                                    except TelegramBadRequest as e:
+                                        if "message to be replied not found" in str(e):
+                                           sent_msg = await  message.chat.send_message("Window sticker недоступен для данного VIN")
+                                        else:
+                                            raise
+                                    await db.AddVIN(vin, sent_msg.message_id)
                                 else:
-                                    pdf_file_data = response.content
-                                    db.AddFile(vin, pdf_file_data)
+                                    pdf_file = BufferedInputFile(
+                                                        response.content,
+                                                        filename=f"{vin}.pdf"
+                                                    )
+                                    try:
+                                        sent_msg = await message.reply_document(
+                                            document=pdf_file,
+                                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                            parse_mode="HTML"
+                                        )
+                                    except TelegramBadRequest as e:
+                                        if "message to be replied not found" in str(e):
+                                            sent_msg = await message.chat.send_document(
+                                                document=pdf_file,
+                                                caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                                parse_mode="HTML"
+                                            )
+                                        else:
+                                            raise
+                                    await db.AddVIN(vin, sent_msg.message_id)
                             else:
                                 user_requests.requests[user_id].pop()
-                                pdf_load_failed = True
+                                try:
+                                    await message.reply("Ошибка загрузки файла")
+                                except TelegramBadRequest as e:
+                                    if "message to be replied not found" in str(e):
+                                        await message.chat.send_message("Ошибка загрузки файла")
+                                    else:
+                                        raise 
                     except Exception as e:
                         user_requests.requests[user_id].pop()
                         await message.reply(f"Произошла ошибка: {str(e)}")
                 else:
-                    pdf_file_data = file_from_db
-                if pdf_file_data:    
-                    pdf_file = BufferedInputFile(
-                                    pdf_file_data,
-                                    filename=f"{vin}.pdf"
-                                )
                     try:
-                        await message.reply_document(
-                            document=pdf_file,
-                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                            parse_mode="HTML"
-                        )
+                        await message.reply(f"Ссылка на сообщение с pdf:\n {CHAT_BASE_URL}{msg_id_from_db}")
                     except TelegramBadRequest as e:
                         if "message to be replied not found" in str(e):
-                            await message.chat.send_document(
-                                document=pdf_file,
-                                caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                parse_mode="HTML"
-                            )
+                            await message.chat.send_message(f"Ссылка на сообщение с pdf:\n {CHAT_BASE_URL}{msg_id_from_db}")
                         else:
-                            raise
-                elif not pdf_file_data and not pdf_load_failed:
-                    try:
-                        await message.reply("Window sticker недоступен для данного VIN")
-                    except TelegramBadRequest as e:
-                        if "message to be replied not found" in str(e):
-                            await message.chat.send_message("Window sticker недоступен для данного VIN")
-                        else:
-                            raise
-                else:
-                    try:
-                        await message.reply("Ошибка загрузки файла")
-                    except TelegramBadRequest as e:
-                        if "message to be replied not found" in str(e):
-                            await message.chat.send_message("Ошибка загрузки файла")
-                        else:
-                            raise                    
+                            raise 
+
                 # try:
                 #     eper_client = FiatPartsClient(headers=headers, cookies=cookies)
                 #     pdf_generator = FiatPartsPDFGenerator()
@@ -156,7 +167,10 @@ async def handle_message(message: Message):
 
 async def main():
     print(f"Бот запущен с лимитом {MAX_REQUESTS_PER_DAY} запросов в сутки на пользователя")
+    db = AsyncDbHandler()
+    await db.init_async()
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     import asyncio
