@@ -4,3 +4,4 @@ python-dotenv
 reportlab
 PyPDF2
 peewee_aio
+aiosqlite
