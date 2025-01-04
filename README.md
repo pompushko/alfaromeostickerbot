@@ -2,8 +2,6 @@
 
 ## Example of running in Docker
 ```yaml
-  redis:
-  
   alfaromeostickerbot:
     image: pompushko/alfaromeostickerbot:latest
     environment:
