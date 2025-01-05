@@ -1,4 +1,4 @@
-import os
+import os 
 import io
 import re
 import httpx
@@ -9,6 +9,10 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import CopyMessage, DeleteMessage
 import asyncio
 from datetime import datetime, timedelta
+from aiogram.types import InputMediaPhoto
+
+from GetImage import get_image
+
 
 import PyPDF2
 
@@ -34,6 +38,7 @@ async def on_added_to_group(event: ChatMemberUpdated):
             f"Бот активирован в этой группе\nЛимит запросов на пользователя: <b>{MAX_REQUESTS_PER_DAY}</b> в сутки",
             parse_mode="HTML"
         )
+
 
 @dp.message()
 async def handle_message(message: Message):
@@ -137,6 +142,25 @@ async def handle_message(message: Message):
                     except Exception as e:
                         user_requests.requests[user_id].pop()
                         await message.reply(f"Произошла ошибка: {str(e)}")
+                    try:
+                        images = await get_image(vin)
+                        if images:
+                            max_images_per_album = 10
+                            for i in range(0, len(images), max_images_per_album):
+                                media_group = [
+                                    InputMediaPhoto(media=BufferedInputFile(image.read(), filename=f"{vin}_{i + idx + 1}.jpg"))
+                                    for idx, image in enumerate(images[i:i + max_images_per_album])
+                                ]
+                                await bot.send_media_group(
+                                    chat_id=message.chat.id,
+                                    media=media_group,
+                                    reply_to_message_id=message.message_id 
+                                )
+                        else:
+                            await message.reply("Фотографии для данного VIN не найдены.")
+                    except Exception as e:
+                        await message.reply(f"Произошла ошибка при отправке фотографий: {str(e)}")
+
                 else:
                     try:
                         await message.reply(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
