@@ -142,7 +142,7 @@ async def handle_message(message: Message):
                                             caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
                                             parse_mode="HTML",
                                             reply_markup=keyboard
-                                        )
+                                        )                                        
                                     except TelegramBadRequest as e:
                                         if "message to be replied not found" in str(e):
                                             sent_msg = await message.chat.send_document(

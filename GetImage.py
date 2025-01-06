@@ -19,18 +19,20 @@ async def get_image(vin):
 
     for resource_name, resource_function in resource_functions.items():
         print(f"Обрабатывается ресурс: {resource_name}")
-        current_images_urls = await resource_function(vin)
+        result = await resource_function(vin)
+        current_images_urls, current_lot_url = result
 
         if current_images_urls:
             print(f"Найдено {len(current_images_urls)} изображений на ресурсе {resource_name}.")
             images_urls.extend(current_images_urls)
+            lot_url = current_lot_url
             break  
 
     if not images_urls:
         print(f"Изображения для VIN {vin} не найдены ни на одном ресурсе.")
         return []
         
-    #output_directory = "./downloaded_images" Для тестирования. 
+
     try:
         async with AsyncSession() as client:
             images = []
@@ -39,12 +41,6 @@ async def get_image(vin):
                     img_response = await client.get(img_url, impersonate="edge101")
                     if img_response.status_code == 200:
                         if len(img_response.content) > 0:
-                            # Для тестирования. Сохранение в файл. Можно снести потом
-                            #local_filename = os.path.join(output_directory, f"{vin}_{idx + 1}.jpg")
-                            #with open(local_filename, "wb") as file:
-                            #    file.write(img_response.content)
-                            #print(f"Сохранено: {local_filename}")
-
                             image_buffer = io.BytesIO(img_response.content)
                             image_buffer.seek(0)
                             images.append(image_buffer)
@@ -57,5 +53,5 @@ async def get_image(vin):
 
     except Exception as e:
         print(f"Ошибка при запросе: {e}")
-        return []
-    return images
+        return [], lot_url
+    return images, lot_url
