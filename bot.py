@@ -4,7 +4,7 @@ import re
 import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, ChatMemberUpdatedFilter, ADMINISTRATOR, JOIN_TRANSITION
-from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile, MaybeInaccessibleMessage
+from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import CopyMessage, DeleteMessage
 import asyncio
@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 
 from GetImage import get_image
 from SendPhoto import send_photos  
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from Callbacks import handle_photos_callback
+from aiogram.types import CallbackQuery
 
 import PyPDF2
 
@@ -27,6 +30,10 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 VIN_PATTERN = re.compile(r'(?:VIN\s*)?(ZA[RS][A-HJ-NPR-Z0-9]{14})', re.IGNORECASE)
+
+@dp.callback_query(lambda callback_query: callback_query.data.startswith("photos:"))
+async def callback_router(callback_query: CallbackQuery):
+    await handle_photos_callback(callback_query, bot=bot, get_image=get_image)
 
 @dp.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=JOIN_TRANSITION))
 async def on_added_to_group(event: ChatMemberUpdated):
@@ -58,6 +65,13 @@ async def handle_message(message: Message):
                 if remaining <= 0:
                     next_reset = datetime.now() + timedelta(days=1)
                     try:
+                        keyboard = InlineKeyboardMarkup()
+                        keyboard.add(
+                            InlineKeyboardButton(
+                                text="Получить фотографии",
+                                callback_data=f"photos:{vin}"
+                            )
+                        )                        
                         await message.reply(
                             f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
                             f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
@@ -113,17 +127,29 @@ async def handle_message(message: Message):
                                                         filename=f"{vin}.pdf"
                                                     )
                                     try:
+                                        keyboard = InlineKeyboardMarkup(
+                                            inline_keyboard=[ 
+                                                [
+                                                    InlineKeyboardButton(
+                                                        text="Получить фотографии битка", 
+                                                        callback_data=f"photos:{vin}"  
+                                                    )
+                                                ]
+                                            ]
+                                        )                                      
                                         sent_msg = await message.reply_document(
                                             document=pdf_file,
                                             caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                            parse_mode="HTML"
+                                            parse_mode="HTML",
+                                            reply_markup=keyboard
                                         )
                                     except TelegramBadRequest as e:
                                         if "message to be replied not found" in str(e):
                                             sent_msg = await message.chat.send_document(
                                                 document=pdf_file,
                                                 caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
-                                                parse_mode="HTML"
+                                                parse_mode="HTML",
+                                                reply_markup=keyboard
                                             )
                                         else:
                                             raise
@@ -140,16 +166,6 @@ async def handle_message(message: Message):
                     except Exception as e:
                         user_requests.requests[user_id].pop()
                         await message.reply(f"Произошла ошибка при отправке pdf: {str(e)}")
-                    try:
-                        await send_photos(
-                            bot=bot,
-                            vin=vin,
-                            chat_id=message.chat.id,
-                            reply_to_message_id=message.message_id,
-                            get_image=get_image
-                        )
-                    except Exception as e:
-                        await message.reply(f"Произошла ошибка при отправке фотографий: {str(e)}")
                 else:
                     try:
                         await message.reply(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
@@ -185,5 +201,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
