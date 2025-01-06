@@ -10,9 +10,8 @@ from aiogram.methods import CopyMessage, DeleteMessage
 import asyncio
 from datetime import datetime, timedelta
 
-from aiogram.types import InputMediaPhoto
-from aiogram.exceptions import TelegramRetryAfter
 from GetImage import get_image
+from SendPhoto import send_photos  
 
 import PyPDF2
 
@@ -23,7 +22,6 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 BOT_USER_ID = os.getenv("TELEGRAM_BOT_USER_ID")
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
-MAX_IMAGES_PER_ALBUM = 10
 user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -91,7 +89,6 @@ async def handle_message(message: Message):
                         return
                     
                     url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
-                    
                     try:
                         async with httpx.AsyncClient() as client:
                             response = await client.get(url)
@@ -142,34 +139,17 @@ async def handle_message(message: Message):
                                         raise 
                     except Exception as e:
                         user_requests.requests[user_id].pop()
-                        await message.reply(f"Произошла ошибка: {str(e)}")
+                        await message.reply(f"Произошла ошибка при отправке pdf: {str(e)}")
                     try:
-                        images = await get_image(vin)
-                        if images:
-                            max_images_per_album = MAX_IMAGES_PER_ALBUM
-                            for i in range(0, len(images), max_images_per_album):
-                                media_group = [
-                                    InputMediaPhoto(media=BufferedInputFile(image.read(), filename=f"{vin}_{i + idx + 1}.jpg"))
-                                    for idx, image in enumerate(images[i:i + max_images_per_album])
-                                ]
-                                for attempt in range(3):  
-                                    try:
-                                        await bot.send_media_group(
-                                            chat_id=message.chat.id,
-                                            media=media_group,
-                                            reply_to_message_id=message.message_id   
-                                        )
-                                        break  
-                                    except TelegramRetryAfter as e:
-                                        retry_after = e.retry_after  
-                                        print(f"Flood control error: retrying after {retry_after} seconds...")
-                                        await asyncio.sleep(retry_after) 
-                                        continue  
-                        else:
-                            await message.reply("Фотографии для данного VIN не найдены.")
+                        await send_photos(
+                            bot=bot,
+                            vin=vin,
+                            chat_id=message.chat.id,
+                            reply_to_message_id=message.message_id,
+                            get_image=get_image
+                        )
                     except Exception as e:
                         await message.reply(f"Произошла ошибка при отправке фотографий: {str(e)}")
-
                 else:
                     try:
                         await message.reply(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
