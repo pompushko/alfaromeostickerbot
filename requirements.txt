@@ -4,6 +4,6 @@ python-dotenv
 reportlab
 PyPDF2
 peewee_aio
-aiosqlite 
 bs4
 curl_cffi
+peewee-aio[aiosqlite]

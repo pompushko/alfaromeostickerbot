@@ -22,13 +22,12 @@ from UserRequests import UserRequests
 from AsyncDbHandler import AsyncDbHandler
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BOT_USER_ID = os.getenv("TELEGRAM_BOT_USER_ID")
+
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
 user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
 VIN_PATTERN = re.compile(r'(?:VIN\s*)?(ZA[RS][A-HJ-NPR-Z0-9]{14})', re.IGNORECASE)
 
 @dp.callback_query(lambda callback_query: callback_query.data.startswith("photos:"))
@@ -87,12 +86,13 @@ async def handle_message(message: Message):
                     return
                 db = AsyncDbHandler()
                 msg_id_from_db = await db.GetMessageIdByVin(vin)
-
+                bot_info = await bot.get_me()
+                bot_id = bot_info.id
                 if msg_id_from_db:
                      #check if message exists
                     try:
-                        tmp_msg = await bot(CopyMessage(chat_id=message.chat.id, from_chat_id=message.chat.id, from_user_id=BOT_USER_ID, message_id=msg_id_from_db))
-                        await bot(DeleteMessage(from_user_id=BOT_USER_ID, message_id=tmp_msg.message_id, chat_id=message.chat.id))
+                        tmp_msg = await bot(CopyMessage(chat_id=message.chat.id, from_chat_id=message.chat.id, from_user_id=bot_id, message_id=msg_id_from_db))
+                        await bot(DeleteMessage(from_user_id=bot_id, message_id=tmp_msg.message_id, chat_id=message.chat.id))
                     except TelegramBadRequest:
                     # delete it from db if it's inaccessible for the bot    
                         await db.DeleteVin(vin)
