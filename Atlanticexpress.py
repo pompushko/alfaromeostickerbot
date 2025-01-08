@@ -22,11 +22,12 @@ async def atlanticexpress_img(vin):
             data = response.json()
             body = json.loads(data.get("body", "{}"))
             items = body.get("items", [])
-            
+            slug = body['items'][0]['slug']
+            lot_url = f"https://atlanticexpress.com.ua/auction/lot/{slug}/"
             if not items:
                 print(f"Лоты для VIN {vin} не найдены.")
                 return []
-
+            
             images = []
             for item in items:
                 media = item.get("media", {})
@@ -35,7 +36,7 @@ async def atlanticexpress_img(vin):
             
             if images:
                 print(f"Найдено {len(images)} изображений для VIN {vin}.")
-                return images
+                return images, lot_url
             else:
                 print(f"Изображения для VIN {vin} не найдены.")
                 return []

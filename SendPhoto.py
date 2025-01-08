@@ -36,4 +36,4 @@ async def send_photos(bot: Bot, vin: str, chat_id: int, reply_to_message_id: int
             await bot.send_message(chat_id, "Фотографии для данного VIN не найдены.")
     except Exception as e:
         await bot.send_message(chat_id, f"Произошла ошибка при отправке фотографий: {str(e)}")
-    return lot_url
+
