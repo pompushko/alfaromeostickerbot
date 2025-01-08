@@ -10,7 +10,7 @@ async def auctionhistory_img(vin):
             lot_response = await client.get(lot_url, impersonate="edge101")
             if lot_response.status_code != 200:
                 print(f"Ошибка: Страница с лотом вернула HTTP код {lot_response.status_code}")
-                return []
+                return [], lot_url
 
             soup = BeautifulSoup(lot_response.text, "html.parser")
             image_tags = soup.find_all("img")  
@@ -19,7 +19,7 @@ async def auctionhistory_img(vin):
                 if "data-src" in img.attrs and "auctionhistory.io" in img["data-src"] and vin in img["data-src"]
             ]
             if image_urls:
-                return image_urls
+                return image_urls, lot_url
             else:
                 print(f"Изображения для VIN {vin} не найдены.")
 
