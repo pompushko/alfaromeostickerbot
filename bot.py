@@ -57,7 +57,7 @@ async def handle_message(message: Message):
         if message_text:
             match = VIN_PATTERN.search(message_text)
             if match:
-                vin = match.group(1)
+                vin = match.group(1).upper()
                 user_id = message.from_user.id
 
                 remaining = user_requests.get_remaining_requests(user_id)
