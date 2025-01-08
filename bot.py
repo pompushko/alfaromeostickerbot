@@ -18,8 +18,14 @@ from aiogram.types import CallbackQuery
 
 import PyPDF2
 
+import logging
+
 from UserRequests import UserRequests
 from AsyncDbHandler import AsyncDbHandler
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
