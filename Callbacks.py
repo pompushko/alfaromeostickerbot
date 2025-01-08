@@ -7,22 +7,40 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
     await callback_query.answer()
 
     try:
-        _, lot_url = await get_image(vin)
+        # Получение ориг сообщения
         original_caption = callback_query.message.caption
 
-        updated_caption = (
+        # Вставляем текст о поиске
+        progress_caption = (
             f"{original_caption}\n\n"
-            f"<b>Ссылка на лот:</b>\n\n"
-            f'<a href="{lot_url}"><u>ТЫЦ</u></a>'
+            f"<b>Идет поиск фотографий...</b> 🔄"
         )
-
         await bot.edit_message_caption(
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,
-            caption=updated_caption,
+            caption=progress_caption,
             parse_mode="HTML",
-            reply_markup=None  # Убираем клавиатуру
         )
+
+        # Получение ссылки (по хорошему переделать без получения урл картинок)
+        _, lot_url = await get_image(vin)
+        # Убираем инфу о поиске. Вставляем ссылку на лот
+
+        send_photo_caption = (
+            f"{original_caption}\n\n"
+            f"<b>Ссылка на лот:</b>\n\n"
+            f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
+            f"<b>Нашел фотографии. Отправляю...</b>\n\n"
+        )
+        await bot.edit_message_caption(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            caption=send_photo_caption,
+            parse_mode="HTML",
+            reply_markup=None
+        )
+
+        # Отправка фотографий. 
         await send_photos(
             bot=bot,
             vin=vin,
@@ -30,5 +48,28 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
             reply_to_message_id=callback_query.message.message_id,
             get_image=get_image
         )
+        # Убираем инфу что нашли. 
+        final_caption = (
+            f"{original_caption}\n\n"
+            f"<b>Ссылка на лот:</b>\n\n"
+            f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
+        )
+        await bot.edit_message_caption(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            caption=final_caption,
+            parse_mode="HTML",
+            reply_markup=None
+        )             
     except Exception as e:
-        await callback_query.answer(f"Ошибка: {str(e)}")
+        # Если ошибка
+        error_caption = (
+            f"{original_caption}\n\n"
+            f"<b>Ошибка:</b> {str(e)} ❌"
+        )
+        await bot.edit_message_caption(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            caption=error_caption,
+            parse_mode="HTML",
+        )

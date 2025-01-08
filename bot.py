@@ -131,7 +131,7 @@ async def handle_message(message: Message):
                                             inline_keyboard=[ 
                                                 [
                                                     InlineKeyboardButton(
-                                                        text="Получить фотографии битка", 
+                                                        text="Найти фотографии битка", 
                                                         callback_data=f"photos:{vin}"  
                                                     )
                                                 ]
