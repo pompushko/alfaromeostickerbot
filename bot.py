@@ -116,6 +116,9 @@ async def handle_message(message: Message):
                                 pdf_buffer = io.BytesIO(response.content)
                                 pdf_reader = PyPDF2.PdfReader(pdf_buffer)
                                 text = pdf_reader.pages[0].extract_text()
+                                price_text = re.search(r'TOTAL PRICE: \*\s*\$([0-9,]+)', text)
+                                if price_text:
+                                    price = int(price_text.group(1).replace(',', ''))
 
                                 if "Sorry, a Window Sticker is unavailable for this VIN" in text:
                                     user_requests.requests[user_id].pop()
@@ -142,10 +145,19 @@ async def handle_message(message: Message):
                                                     )
                                                 ]
                                             ]
-                                        )                                      
+                                        )
+
+                                        options_level = "Непанятная"
+
+                                        if price:
+                                            if price >= 50000:
+                                                options_level = "Мажорная"
+                                            else:
+                                                options_level = "Бомж"
+
                                         sent_msg = await message.reply_document(
                                             document=pdf_file,
-                                            caption=f"Window sticker for VIN: <b>{vin}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
+                                            caption=f"Window sticker for VIN: <b>{vin}</b>\n Комплектация: <b>{options_level}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
                                             parse_mode="HTML",
                                             reply_markup=keyboard
                                         )                                        
