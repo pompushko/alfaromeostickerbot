@@ -1,15 +1,22 @@
 from curl_cffi.requests import AsyncSession
-import os 
 import io
 
 
 from Atlanticexpress import atlanticexpress_img
 from Auctionhistory import auctionhistory_img
 from Bid import bid_img
+from Autotorgby import autotorgby_img
+import logging
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s -  %(message)s'
+)
 
 async def get_image(vin):
     resource_functions = {
+        "autotorgby": autotorgby_img,
         "auctionhistory": auctionhistory_img,
         "bid": bid_img,
         "atlanticexpress": atlanticexpress_img,
@@ -18,19 +25,20 @@ async def get_image(vin):
     images_urls = []
 
     for resource_name, resource_function in resource_functions.items():
-        print(f"Обрабатывается ресурс: {resource_name}")
+        logger.info(f"Обрабатывается ресурс: {resource_name}")
         result = await resource_function(vin)
         current_images_urls, current_lot_url = result
 
         if current_images_urls:
-            print(f"Найдено {len(current_images_urls)} изображений на ресурсе {resource_name}.")
+            logger.info(f"Найдено {len(current_images_urls)} изображений на ресурсе {resource_name}.")
             images_urls.extend(current_images_urls)
             lot_url = current_lot_url
             break  
 
-    if not images_urls:
-        print(f"Изображения для VIN {vin} не найдены ни на одном ресурсе.")
-        return []
+        if not images_urls:
+            logger.warning(f"Изображения для VIN {vin} не найдены ни на одном ресурсе.")
+            lot_url = current_lot_url
+            return [], lot_url
         
 
     try:
@@ -45,13 +53,13 @@ async def get_image(vin):
                             image_buffer.seek(0)
                             images.append(image_buffer)
                         else:
-                            print(f"Изображение пустое: {img_url}")
+                            logger.warning(f"Изображение пустое: {img_url}")
                     else:
-                        print(f"Ошибка загрузки изображения {img_url}: статус {img_response.status_code}")
+                        logger.error(f"Ошибка загрузки изображения {img_url}: статус {img_response.status_code}")
                 except Exception as e:
-                    print(f"Ошибка при обработке изображения {img_url}: {e}")
+                    logger.error(f"Ошибка при обработке изображения {img_url}: {e}")
 
     except Exception as e:
-        print(f"Ошибка при запросе: {e}")
+        logger.error(f"Ошибка при запросе: {e}")
         return [], lot_url
     return images, lot_url

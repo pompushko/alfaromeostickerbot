@@ -10,22 +10,22 @@ logging.basicConfig(
 )
 
 
-async def auctionhistory_img(vin):
-    lot_url = f"https://auctionhistory.io/item/{vin}"
+async def autotorgby_img(vin):
+    lot_url = f"https://cars.autotorgby.com/istoriya-prodazh-copart-iaai-manheim?VIN={vin}"
     try:
         async with AsyncSession() as client:
             logger.info(f"URL страницы лота: {lot_url}")
             lot_response = await client.get(lot_url, impersonate="edge101")
             if lot_response.status_code != 200:
                 logger.error(f"Ошибка: Страница с лотом вернула HTTP код {lot_response.status_code}")
-                logger.warning(f"URL для VIN {vin} на auctionhistory не найден.")
+                logger.warning(f"URL для VIN {vin} на autotorgby не найден.")
                 return [], []
 
             soup = BeautifulSoup(lot_response.text, "html.parser")
-            image_tags = soup.find_all("img")  
+            image_tags = soup.find_all("link", {"itemprop": "contentUrl"})
             image_urls = [
-                img["data-src"] for img in image_tags
-                if "data-src" in img.attrs and "auctionhistory.io" in img["data-src"] and vin in img["data-src"]
+                link["href"] for link in image_tags
+                if link.name == "link" and "href" in link.attrs
             ]
             if image_urls:
                 return image_urls, lot_url
