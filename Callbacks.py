@@ -13,7 +13,7 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
         # Вставляем текст о поиске
         progress_caption = (
             f"{original_caption}\n\n"
-            f"<b>Идет поиск фотографий...</b> 🔄"
+            f"<b>Идет поиск лота...</b> !🔄"
         )
         await bot.edit_message_caption(
             chat_id=callback_query.message.chat.id,
@@ -25,12 +25,11 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
         # Получение ссылки (по хорошему переделать без получения урл картинок)
         _, lot_url = await get_image(vin)
         # Убираем инфу о поиске. Вставляем ссылку на лот
-
         send_photo_caption = (
             f"{original_caption}\n\n"
             f"<b>Ссылка на лот:</b>\n\n"
             f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
-            f"<b>Нашел фотографии. Отправляю...</b>\n\n"
+            f"<b>Лот найден. Пробуем получить и отправить фотографии...📷</b>\n\n"
         )
         await bot.edit_message_caption(
             chat_id=callback_query.message.chat.id,
@@ -40,20 +39,27 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
             reply_markup=None
         )
 
-        # Отправка фотографий. 
-        await send_photos(
+        img_not_found = await send_photos(
             bot=bot,
             vin=vin,
             chat_id=callback_query.message.chat.id,
             reply_to_message_id=callback_query.message.message_id,
             get_image=get_image
         )
-        # Убираем инфу что нашли. 
-        final_caption = (
-            f"{original_caption}\n\n"
-            f"<b>Ссылка на лот:</b>\n\n"
-            f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
-        )
+        if img_not_found:
+            final_caption = (
+                f"{original_caption}\n\n"
+                f"<b>Ссылка на лот:</b>\n\n"
+                f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
+                f"<b>Фотографии не удалось получить.</b>"  
+            )
+        else:
+            final_caption = (
+                f"{original_caption}\n\n"
+                f"<b>Ссылка на лот:</b>\n\n"
+                f'<a href="{lot_url}"><u>ТЫЦ</u></a>\n\n'
+            )
+
         await bot.edit_message_caption(
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,
