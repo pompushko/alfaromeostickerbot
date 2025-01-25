@@ -40,7 +40,7 @@ user_requests = UserRequests(max_requests=MAX_REQUESTS_PER_DAY)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 VIN_PATTERN = re.compile(r'(?:VIN\s*)?(ZA[RS][A-HJ-NPR-Z0-9]{14})', re.IGNORECASE)
-EVAP_PATTERN = re.compile(r'(e|е|э)(v|в)(a|а)(p|п)', re.IGNORECASE)
+EVAP_PATTERN = re.compile(r'(e|е|э)(v|в)(a|а)+(p|п)', re.IGNORECASE)
 evap_messages = {}
 @dp.callback_query(lambda callback_query: callback_query.data.startswith("photos:"))
 async def callback_router(callback_query: CallbackQuery):
