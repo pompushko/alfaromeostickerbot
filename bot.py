@@ -32,7 +32,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(name)s -  %(message)s'
 )
 
-TOKEN = "7630766447:AAGHmsCwiS8ejTXT62P8Z5a38e8RELXO61A"
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
