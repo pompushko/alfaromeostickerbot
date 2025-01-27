@@ -35,10 +35,10 @@ async def get_image(vin):
             lot_url = current_lot_url
             break  
 
-        if not images_urls:
-            logger.warning(f"Изображения для VIN {vin} не найдены ни на одном ресурсе.")
-            lot_url = current_lot_url
-            return [], lot_url
+    if not images_urls:
+        logger.warning(f"Изображения для VIN {vin} не найдены ни на одном ресурсе.")
+        lot_url = current_lot_url
+        return [], lot_url
         
 
     try:

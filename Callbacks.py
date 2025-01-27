@@ -24,7 +24,19 @@ async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
 
         # Получение ссылки (по хорошему переделать без получения урл картинок)
         _, lot_url = await get_image(vin)
-        # Убираем инфу о поиске. Вставляем ссылку на лот
+        if not lot_url:
+            not_found_caption = (
+                f"{original_caption}\n\n"
+                f"<b>Лот не найден.</b> 👀"
+            )
+            await bot.edit_message_caption(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                caption=not_found_caption,
+                parse_mode="HTML",
+                reply_markup=None
+            )
+            return            
         send_photo_caption = (
             f"{original_caption}\n\n"
             f"<b>Ссылка на лот:</b>\n\n"
