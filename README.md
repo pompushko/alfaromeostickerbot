@@ -7,7 +7,7 @@
     environment:
       - TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
       - MAX_REQUESTS_PER_DAY=5
-      - SQLITE_LOCATION={mounted_dir}/VINComplectations.sqlite3
+      - SQLITE_LOCATION={mounted_dir}/VINSpecLists.sqlite3
     restart: always
     deploy:
       mode: global

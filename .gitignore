@@ -166,3 +166,5 @@ cython_debug/
 *.pdf
 *.sqlite3
 sqlite/
+
+.DS_store
