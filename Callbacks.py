@@ -1,6 +1,7 @@
 from aiogram.types import CallbackQuery
 from SendPhoto import send_photos  
 from GetImage import get_image
+TARGET_THREAD_ID = 1801
 
 async def handle_photos_callback(callback_query: CallbackQuery, bot, get_image):
     vin = callback_query.data.split(":")[1]

@@ -31,7 +31,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s -  %(message)s'
 )
-
+TARGET_THREAD_ID = 1801
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 ALLOWED_CHATS = set()
@@ -71,7 +71,7 @@ async def handle_message(message: Message):
             if match:
                 vin = match.group(1).upper()
                 user_id = message.from_user.id
-
+                original_thread_id = message.message_thread_id
                 remaining = user_requests.get_remaining_requests(user_id)
                 if remaining <= 0:
                     next_reset = datetime.now() + timedelta(days=1)
@@ -86,7 +86,8 @@ async def handle_message(message: Message):
                         await message.reply(
                             f"Достигнут дневной лимит запросов (<b>{MAX_REQUESTS_PER_DAY}</b>). "
                             f"Следующий запрос будет доступен через <b>{next_reset.strftime('%H:%M:%S')}</b>",
-                            parse_mode="HTML"
+                            parse_mode="HTML",
+                            message_thread_id=original_thread_id
                         )
                     except TelegramBadRequest as e:
                         if "message to be replied not found" in str(e):
@@ -129,7 +130,11 @@ async def handle_message(message: Message):
                                 if "Sorry, a Window Sticker is unavailable for this VIN" in text:
                                     user_requests.requests[user_id].pop()
                                     try:
-                                        sent_msg = await message.reply("Window sticker недоступен для данного VIN")
+                                        sent_msg = await bot.send_message(
+                                            chat_id=message.chat.id,
+                                            message_thread_id=TARGET_THREAD_ID,  # Целевая тема
+                                            text="Window sticker недоступен для данного VIN"
+                                        )
                                     except TelegramBadRequest as e:
                                         if "message to be replied not found" in str(e):
                                            sent_msg = await  message.chat.send_message("Window sticker недоступен для данного VIN")
@@ -161,12 +166,18 @@ async def handle_message(message: Message):
                                             else:
                                                 options_level = "Бомж"
 
-                                        sent_msg = await message.reply_document(
+                                        sent_msg = await bot.send_document(
+                                            chat_id=message.chat.id,
+                                            message_thread_id=TARGET_THREAD_ID,  # Целевая тема
                                             document=pdf_file,
                                             caption=f"Window sticker for VIN: <b>{vin}</b>\n Комплектация: <b>{options_level}</b>\nОсталось запросов сегодня: <b>{remaining-1}</b>",
                                             parse_mode="HTML",
                                             reply_markup=keyboard
-                                        )                                        
+                                        ) 
+                                        await message.reply(
+                                            f"Ответ отправлен сюда: https://t.me/c/{str(message.chat.id)[4:]}/{sent_msg.message_id}",
+                                            #message_thread_id=original_thread_id  # Исходная тема
+                                        )                                       
                                     except TelegramBadRequest as e:
                                         if "message to be replied not found" in str(e):
                                             sent_msg = await message.chat.send_document(
@@ -192,7 +203,10 @@ async def handle_message(message: Message):
                         await message.reply(f"Произошла ошибка при отправке pdf: {str(e)}")
                 else:
                     try:
-                        await message.reply(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")
+                        await message.reply(
+                            f"Ссылка на сообщение с pdf: https://t.me/c/{str(message.chat.id)[4:]}/{msg_id_from_db}",
+                            message_thread_id=original_thread_id  # Исходная тема
+                        )
                     except TelegramBadRequest as e:
                         if "message to be replied not found" in str(e):
                             await message.chat.send_message(f"Ссылка на сообщение с pdf:\nhttps://t.me/{message.chat.username}/{msg_id_from_db}")

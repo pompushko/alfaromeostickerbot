@@ -13,7 +13,7 @@ logging.basicConfig(
 MAX_IMAGES_PER_ALBUM = 10
 
 
-async def send_photos(bot: Bot, vin: str, chat_id: int, reply_to_message_id: int, get_image):
+async def send_photos(bot: Bot, vin: str, chat_id: int, reply_to_message_id: int, get_image, message_thread_id: int = None):
     img_not_found = False
     try:
         images, lot_url = await get_image(vin)
@@ -32,6 +32,7 @@ async def send_photos(bot: Bot, vin: str, chat_id: int, reply_to_message_id: int
                         chat_id=chat_id,
                         media=media_group,
                         reply_to_message_id=reply_to_message_id,
+                        message_thread_id=message_thread_id,
                     )
                     break
                 except TelegramRetryAfter as e:
@@ -42,6 +43,9 @@ async def send_photos(bot: Bot, vin: str, chat_id: int, reply_to_message_id: int
         else:
             img_not_found = True
     except Exception as e:
-        await bot.send_message(chat_id, f"Произошла ошибка при отправке фотографий: {str(e)}")
-
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"Произошла ошибка при отправке фотографий: {str(e)}",
+            message_thread_id=message_thread_id,  # Целевая тема
+        )
     return img_not_found
