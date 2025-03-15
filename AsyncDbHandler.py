@@ -39,3 +39,6 @@ class AsyncDbHandler:
    
     async def DeleteVin(self, vin: str):
         await self.db_model.delete_by_id(vin)
+
+    async def UpdateMessageId(self, vin: str, msg_id: [str, None]):
+        await self.db_model.update(msg_id=msg_id).where(self.db_model.vin == vin).execute()        
