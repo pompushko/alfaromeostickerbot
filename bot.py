@@ -31,8 +31,8 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s -  %(message)s'
 )
-TARGET_CHAT_ID = -1002487746246
-TARGET_THREAD_ID = 1863
+TARGET_CHAT_ID = -1001242244844
+TARGET_THREAD_ID = 400639
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 ALLOWED_CHATS = set()
