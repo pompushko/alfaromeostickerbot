@@ -99,19 +99,19 @@ async def handle_message(message: Message):
                     return
                 db = AsyncDbHandler()
                 msg_id_from_db = await db.GetMessageIdByVin(vin)
-                print(msg_id_from_db)
                 bot_info = await bot.get_me()
                 bot_id = bot_info.id
                 if msg_id_from_db:
                      #check if message exists
                     try:
                         tmp_msg = await bot.copy_message(
-                            chat_id=message.chat.id,
+                            chat_id=TARGET_CHAT_ID,
+                            message_thread_id=TARGET_THREAD_ID,
                             from_chat_id=TARGET_CHAT_ID,
                             message_id=msg_id_from_db
                         )
                         await bot.delete_message(
-                            chat_id=message.chat.id,
+                            chat_id=TARGET_CHAT_ID,
                             message_id=tmp_msg.message_id
                         )
                         await message.reply(
@@ -123,7 +123,6 @@ async def handle_message(message: Message):
                         await db.DeleteVin(vin)
                         msg_id_from_db = None
                 if not msg_id_from_db:
-                    print("No messages in db")
                     if not user_requests.add_request(user_id):
                         await message.reply("Ошибка при обработке запроса. Попробуйте позже.")
                         return
@@ -156,7 +155,6 @@ async def handle_message(message: Message):
                                     if msg_id_from_db:
                                         await db.UpdateMessageId(vin, sent_msg.message_id)
                                     else: 
-                                        print("add1") 
                                         await db.AddVIN(vin, sent_msg.message_id)
                                 else:
                                     pdf_file = BufferedInputFile(
@@ -207,7 +205,6 @@ async def handle_message(message: Message):
                                     if msg_id_from_db:
                                         await db.UpdateMessageId(vin, sent_msg.message_id)
                                     else:
-                                        print("add3") 
                                         await db.AddVIN(vin, sent_msg.message_id)
                             else:
                                 user_requests.requests[user_id].pop()
