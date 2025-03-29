@@ -24,6 +24,7 @@ import logging
 
 from UserRequests import UserRequests
 from AsyncDbHandler import AsyncDbHandler
+from message_monitor import monitor_message
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -31,8 +32,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s -  %(message)s'
 )
-TARGET_CHAT_ID = -1001242244844
-TARGET_THREAD_ID = 400639
+    
+TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")
+TARGET_THREAD_ID = os.getenv("TARGET_THREAD_ID")
+
+#TARGET_CHAT_ID = -1001242244844
+#TARGET_THREAD_ID = 400639
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 ALLOWED_CHATS = set()
@@ -60,6 +65,7 @@ async def on_added_to_group(event: ChatMemberUpdated):
 
 @dp.message()
 async def handle_message(message: Message):
+    asyncio.create_task(monitor_message(bot, message))
     if message.from_user.is_bot:
         return
     if message.content_type not in ['text', 'photo', 'document']:
@@ -135,10 +141,11 @@ async def handle_message(message: Message):
                                 pdf_buffer = io.BytesIO(response.content)
                                 pdf_reader = PyPDF2.PdfReader(pdf_buffer)
                                 text = pdf_reader.pages[0].extract_text()
+                                price = None
                                 price_text = re.search(r'TOTAL PRICE: \*\s*\$([0-9,]+)', text)
                                 if price_text:
                                     price = int(price_text.group(1).replace(',', ''))
-
+                                print(price)
                                 if "Sorry, a Window Sticker is unavailable for this VIN" in text:
                                     user_requests.requests[user_id].pop()
                                     try:
@@ -174,8 +181,7 @@ async def handle_message(message: Message):
                                         )
 
                                         options_level = "Непанятная"
-
-                                        if price:
+                                        if price is not None:
                                             if price >= 50000:
                                                 options_level = "Мажорная"
                                             else:
