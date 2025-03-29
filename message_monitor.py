@@ -39,13 +39,14 @@ async def monitor_message(bot: Bot, message: Message):
             return
         
         if len(media_group_messages[media_group_id]) == 1:
-            processed_media_groups.add(media_group_id)  
+            await asyncio.sleep(0.5) 
+            processed_media_groups.add(media_group_id)
             
             first_message = media_group_messages[media_group_id][0]
             message_text = (first_message.text or first_message.caption or '').lower()
             
             message_ids = [msg.message_id for msg in media_group_messages[media_group_id]]
-            logger.info(f"Media group {media_group_id} started: {len(message_ids)} messages, IDs: {message_ids}")
+            logger.info(f"Media group {media_group_id} collected: {len(message_ids)} messages, IDs: {message_ids}")
         else:
             message_ids = [msg.message_id for msg in media_group_messages[media_group_id]]
             logger.info(f"Media group {media_group_id} updated: {len(message_ids)} messages, IDs: {message_ids}")
@@ -92,16 +93,20 @@ async def monitor_message(bot: Bot, message: Message):
             
             async def delete_task():
                 await asyncio.sleep(WARNING_DELETE_DELAY)
+                message_ids = [msg.message_id for msg in media_group_messages.get(media_group_id, [first_message])]
+                all_ids = message_ids + [warning_msg.message_id]
+                logger.info(f"Preparing to delete messages for media group {media_group_id or 'single'}: IDs {all_ids}")
                 try:
-                    print(media_group_messages)
-                    for msg in media_group_messages.get(media_group_id, [first_message]):
-                        await bot.delete_message(message.chat.id, msg.message_id)
-                    await bot.delete_message(message.chat.id, warning_msg.message_id)
-                except TelegramBadRequest:
-                    try:
-                        await bot.delete_message(message.chat.id, warning_msg.message_id)
-                    except TelegramBadRequest:
-                        pass
+                    await bot.delete_messages(chat_id=message.chat.id, message_ids=all_ids)
+                    logger.info(f"Successfully deleted messages: {all_ids}")
+                except TelegramBadRequest as e:
+                    logger.warning(f"Failed to delete messages: {e}, attempted IDs: {all_ids}")
+                    for msg_id in all_ids:
+                        try:
+                            await bot.delete_message(message.chat.id, msg_id)
+                            logger.info(f"Manually deleted message: {msg_id}")
+                        except TelegramBadRequest as e:
+                            logger.warning(f"Failed to delete message {msg_id}: {e}")
             
             task = asyncio.create_task(delete_task())
             monitored_messages[first_message.message_id] = {
