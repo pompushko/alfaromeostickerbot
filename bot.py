@@ -17,6 +17,7 @@ from SendPhoto import send_photos
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from Callbacks import handle_photos_callback
 from aiogram.types import CallbackQuery
+from delete_vin import delete_vin
 
 import PyPDF2
 
@@ -62,6 +63,9 @@ async def on_added_to_group(event: ChatMemberUpdated):
             parse_mode="HTML"
         )
 
+@dp.message(Command("deletevin"))
+async def handle_deletevin(message: Message):
+    await delete_vin(message, VIN_PATTERN)
 
 @dp.message()
 async def handle_message(message: Message):
