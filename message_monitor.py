@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 
 MARKET_THREAD_ID = os.getenv("MARKET_THREAD_ID")
-if MARKET_THREAD_ID is not None:
+if MARKET_THREAD_ID is not None and MARKET_THREAD_ID != '':
     MARKET_THREAD_ID = int(MARKET_THREAD_ID)
 SCAM_WARNING_DELETE_DELAY = int(os.getenv("SCAM_WARNING_DELETE_DELAY", "1800"))
 WARNING_DELETE_DELAY = int(os.getenv("WARNING_DELETE_DELAY", "60")) 
