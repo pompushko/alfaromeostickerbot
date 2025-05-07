@@ -37,9 +37,10 @@ logging.basicConfig(
 TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")
 TARGET_THREAD_ID = os.getenv("TARGET_THREAD_ID")
 
-#TARGET_CHAT_ID = -1001242244844
-#TARGET_THREAD_ID = 400639
+# TARGET_CHAT_ID = -1001242244844
+# TARGET_THREAD_ID = 241
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
 
 ALLOWED_CHATS = set()
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "10"))
@@ -48,7 +49,37 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 VIN_PATTERN = re.compile(r'(?:VIN\s*)?(ZA[RS][A-HJ-NPR-Z0-9]{14})', re.IGNORECASE)
 EVAP_PATTERN = re.compile(r'(e|е|э)(v|в)(a|а)+(p|п)', re.IGNORECASE)
-evap_messages = {}
+SUN_ROOF_PATTERN = re.compile(r'(п)(a|а)+(н|h)(о|о)+(р|p)(а|a)+(m|м)(а|a)+', re.IGNORECASE)
+evap_messages  = {}
+sun_roof_messages = {}
+
+async def send_meme_sticker(type: str, renew_storage: dict, message: Message ) -> dict:
+
+    thread_id = message.message_thread_id
+        
+    if (message.message_thread_id in renew_storage and datetime.now() > renew_storage[thread_id]["renew_time"]) or message.message_thread_id not in renew_storage:
+        
+        img_name = ""
+        
+        if type == "evap":
+            img_name = str(randint(1, 2))
+        else:
+            img_name = "sun_roof"
+                        
+        meme_sticker_file = FSInputFile(f"stickers/{img_name}.jpg")
+        renew_storage[thread_id] = {"renew_time": datetime.now() + timedelta(hours=1)}
+        try:
+            await message.answer_sticker(sticker=meme_sticker_file)
+        except TelegramBadRequest as e:
+            if "message to be replied not found" in str(e):
+                await message.chat.send_sticker(sticker=meme_sticker_file)
+            else:
+                raise 
+    
+    return renew_storage
+    
+
+
 @dp.callback_query(lambda callback_query: callback_query.data.startswith("photos:"))
 async def callback_router(callback_query: CallbackQuery):
     await handle_photos_callback(callback_query, bot=bot, get_image=get_image)
@@ -257,20 +288,16 @@ async def handle_message(message: Message):
                 # except Exception as e:ss
                 #     user_requests.requests[user_id].pop()
             match_evap = EVAP_PATTERN.search(message_text)
+            
+            
             if match_evap:
-                thread_id = message.message_thread_id
-
-                if (message.message_thread_id in evap_messages and datetime.now() > evap_messages[thread_id]["renew_time"]) or message.message_thread_id not in evap_messages:
-                    img_num = randint(1, 2)
-                    evap_file = FSInputFile(f"stickers/{img_num}.jpg")
-                    evap_messages[thread_id] = {"renew_time": datetime.now() + timedelta(hours=1)}
-                    try:
-                        await message.answer_sticker(sticker=evap_file)
-                    except TelegramBadRequest as e:
-                        if "message to be replied not found" in str(e):
-                            await message.chat.send_sticker(sticker=evap_file)
-                        else:
-                            raise 
+                global evap_messages
+                evap_messages = await send_meme_sticker(type="evap", renew_storage=evap_messages, message=message)
+            match_sun_roof = SUN_ROOF_PATTERN.search(message_text)
+            if match_sun_roof:
+                global sun_roof_messages
+                sun_roof_messages = await send_meme_sticker(type="sun_roof", renew_storage=sun_roof_messages, message=message)
+                
 async def main():
     print(f"Бот запущен с лимитом {MAX_REQUESTS_PER_DAY} запросов в сутки на пользователя")
     db = AsyncDbHandler()
