@@ -138,8 +138,11 @@ async def handle_message(message: Message):
                         return
                     
                     url = f"https://www.alfaromeousa.com/hostd/windowsticker/getWindowStickerPdf.do?vin={vin}"
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+                    }
                     try:
-                        async with httpx.AsyncClient() as client:
+                        async with httpx.AsyncClient(headers=headers) as client:
                             response = await client.get(url)
                             if response.status_code == 200:
                                 pdf_buffer = io.BytesIO(response.content)
