@@ -1,0 +1,136 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bot-app
+  labels:
+    name: bot-app
+
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bot-secrets
+  namespace: bot-app
+type: Opaque
+data:
+  # telegram-bot-token: <base64-encoded-token>
+  telegram-bot-token: <base64-encoded-token>
+
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bot-config
+  namespace: bot-app
+data:
+  SQLITE_LOCATION: "/sqlite/VINComplectations.sqlite3"
+  MARKET_THREAD_ID: "152476"
+  TARGET_CHAT_ID: "-1001242244844"
+  TARGET_THREAD_ID: "400639"
+
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: bot-sqlite-nfs
+  namespace: bot-app
+  labels:
+    type: nfs
+spec:
+  storageClassName: nfs
+  claimRef:
+    name: bot-sqlite-pvc
+    namespace: bot-app
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: <server>
+    path: /var/nfs/alfaromeostickerbot
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bot-sqlite-pvc
+  namespace: bot-app
+spec:
+  storageClassName: nfs
+  volumeName: bot-sqlite-nfs
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alfaromeostickerbot
+  namespace: bot-app
+  labels:
+    app: alfaromeostickerbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alfaromeostickerbot
+  template:
+    metadata:
+      labels:
+        app: alfaromeostickerbot
+        logging: "promtail"
+        logging_jobname: "containerlogs"
+    spec:
+      containers:
+      - name: alfaromeostickerbot
+        image: pompushko/alfaromeostickerbot:latest
+        env:
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: telegram-bot-token
+        - name: SQLITE_LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: bot-config
+              key: SQLITE_LOCATION
+        - name: MARKET_THREAD_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bot-config
+              key: MARKET_THREAD_ID
+        - name: TARGET_CHAT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bot-config
+              key: TARGET_CHAT_ID
+        - name: TARGET_THREAD_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bot-config
+              key: TARGET_THREAD_ID
+        volumeMounts:
+        - name: sqlite-storage
+          mountPath: /sqlite
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: sqlite-storage
+        persistentVolumeClaim:
+          claimName: bot-sqlite-pvc
+      restartPolicy: Always
